@@ -25,18 +25,27 @@ class SEOVisualizer:
     @staticmethod
     def plot_link_score_vs_depth(df: pd.DataFrame) -> go.Figure:
         """Scatter plot Link Score vs Profondeur"""
+        # Nettoyer les données pour la visualisation
+        df_clean = df.copy()
+        df_clean['Impressions'] = pd.to_numeric(df_clean['Impressions'], errors='coerce').fillna(0)
+        df_clean['Impressions'] = df_clean['Impressions'].clip(lower=0)
+        
+        # Ajouter une petite valeur pour éviter les points de taille 0
+        df_clean['Impressions_viz'] = df_clean['Impressions'] + 1
+        
         fig = px.scatter(
-            df,
+            df_clean,
             x='Crawl Depth',
             y='Link Score',
-            size='Impressions',
+            size='Impressions_viz',
             color='Priority_Score',
-            hover_data=['Address', 'Clicks'],
+            hover_data=['Address', 'Clicks', 'Impressions'],
             title='Link Score vs Profondeur de Crawl',
             labels={
                 'Crawl Depth': 'Profondeur',
                 'Link Score': 'Link Score',
-                'Priority_Score': 'Score Priorité'
+                'Priority_Score': 'Score Priorité',
+                'Impressions_viz': 'Impressions'
             },
             color_continuous_scale='Viridis'
         )
