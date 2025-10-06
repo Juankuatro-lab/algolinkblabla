@@ -1,5 +1,4 @@
-# 🔗 Optimiseur de Maillage Interne SEO
-
+# 🔗 ALGOLINK
 Outil Python pour analyser et optimiser le maillage interne de votre site web basé sur les données Screaming Frog et Google Search Console.
 
 ![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
