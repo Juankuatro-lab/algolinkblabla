@@ -54,7 +54,25 @@ class SEOVisualizer:
     @staticmethod
     def plot_gsc_performance(df: pd.DataFrame, top_n: int = 20) -> go.Figure:
         """Graphique des performances GSC (top pages)"""
-        top_pages = df.nlargest(top_n, 'Impressions')
+        # Nettoyer les données
+        df_clean = df.copy()
+        df_clean['Impressions'] = pd.to_numeric(df_clean['Impressions'], errors='coerce').fillna(0)
+        df_clean['Clicks'] = pd.to_numeric(df_clean['Clicks'], errors='coerce').fillna(0)
+        
+        # Filtrer les pages avec des impressions
+        df_clean = df_clean[df_clean['Impressions'] > 0]
+        
+        if len(df_clean) == 0:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="Aucune donnée GSC disponible",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16)
+            )
+            return fig
+        
+        top_pages = df_clean.nlargest(top_n, 'Impressions')
         
         fig = go.Figure()
         
@@ -75,7 +93,7 @@ class SEOVisualizer:
         ))
         
         fig.update_layout(
-            title=f'Top {top_n} Pages - Performances GSC',
+            title=f'Top {len(top_pages)} Pages - Performances GSC',
             xaxis={'title': 'URL (fin)', 'tickangle': -45},
             yaxis={'title': 'Nombre'},
             barmode='group',
@@ -89,11 +107,14 @@ class SEOVisualizer:
         """Visualisation du graphe de liens recommandés"""
         
         if len(opportunities) == 0:
-            return go.Figure().add_annotation(
+            fig = go.Figure()
+            fig.add_annotation(
                 text="Aucune opportunité de lien trouvée",
                 xref="paper", yref="paper",
-                x=0.5, y=0.5, showarrow=False
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16)
             )
+            return fig
         
         # Limiter le nombre de liens pour la lisibilité
         top_opportunities = opportunities.head(max_links)
@@ -111,7 +132,7 @@ class SEOVisualizer:
         # Position des noeuds
         pos = nx.spring_layout(G, k=2, iterations=50)
         
-        # Extraire les coordonnées
+        # Extraire les coordonnées des arêtes
         edge_x = []
         edge_y = []
         
@@ -128,10 +149,12 @@ class SEOVisualizer:
             mode='lines'
         )
         
+        # Extraire les coordonnées des noeuds
         node_x = []
         node_y = []
         node_text = []
         node_size = []
+        node_color = []
         
         for node in G.nodes():
             x, y = pos[node]
@@ -140,8 +163,10 @@ class SEOVisualizer:
             # Tronquer l'URL pour l'affichage
             display_url = node.split('/')[-1][:30] if '/' in node else node[:30]
             node_text.append(display_url)
-            # Taille basée sur le degré
-            node_size.append(10 + G.degree(node) * 5)
+            # Taille et couleur basées sur le degré
+            degree = G.degree(node)
+            node_size.append(10 + degree * 5)
+            node_color.append(degree)
         
         node_trace = go.Scatter(
             x=node_x, y=node_y,
@@ -153,24 +178,24 @@ class SEOVisualizer:
                 showscale=True,
                 colorscale='YlGnBu',
                 size=node_size,
-                color=[G.degree(node) for node in G.nodes()],
+                color=node_color,
                 colorbar=dict(
                     thickness=15,
                     title='Connexions',
                     xanchor='left',
                     titleside='right'
                 ),
-                line_width=2
+                line=dict(width=2, color='white')
             )
         )
         
         fig = go.Figure(data=[edge_trace, node_trace],
                        layout=go.Layout(
-                           title=f'Graphe des Opportunités de Liens (Top {max_links})',
+                           title=f'Graphe des Opportunités de Liens (Top {len(top_opportunities)})',
                            titlefont_size=16,
                            showlegend=False,
                            hovermode='closest',
-                           margin=dict(b=0, l=0, r=0, t=40),
+                           margin=dict(b=20, l=5, r=5, t=40),
                            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                            height=600
