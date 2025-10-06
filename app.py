@@ -157,6 +157,11 @@ else:
     )
     visualizer = SEOVisualizer()
     
+    # Calculer les scores de priorité une seule fois
+    if 'priority_data' not in st.session_state:
+        with st.spinner("Calcul des scores de priorité..."):
+            st.session_state.priority_data = analyzer.calculate_priority_score()
+    
     # Onglets principaux
     tab1, tab2, tab3, tab4 = st.tabs([
         "📊 Vue d'ensemble",
@@ -177,13 +182,13 @@ else:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("📉 Distribution Link Score")
-            fig_ls = visualizer.plot_priority_distribution(st.session_state.merged_data)
+            st.subheader("📉 Distribution des Scores de Priorité")
+            fig_ls = visualizer.plot_priority_distribution(st.session_state.priority_data)
             st.plotly_chart(fig_ls, use_container_width=True)
         
         with col2:
             st.subheader("🎯 Link Score vs Profondeur")
-            fig_scatter = visualizer.plot_link_score_vs_depth(st.session_state.merged_data)
+            fig_scatter = visualizer.plot_link_score_vs_depth(st.session_state.priority_data)
             st.plotly_chart(fig_scatter, use_container_width=True)
         
         if st.session_state.loader.gsc_data is not None:
