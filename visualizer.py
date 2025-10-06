@@ -130,7 +130,10 @@ class SEOVisualizer:
             )
         
         # Position des noeuds
-        pos = nx.spring_layout(G, k=2, iterations=50)
+        try:
+            pos = nx.spring_layout(G, k=2, iterations=50)
+        except:
+            pos = nx.random_layout(G)
         
         # Extraire les coordonnées des arêtes
         edge_x = []
@@ -146,13 +149,15 @@ class SEOVisualizer:
             x=edge_x, y=edge_y,
             line=dict(width=0.5, color='#888'),
             hoverinfo='none',
-            mode='lines'
+            mode='lines',
+            showlegend=False
         )
         
         # Extraire les coordonnées des noeuds
         node_x = []
         node_y = []
         node_text = []
+        node_hover = []
         node_size = []
         node_color = []
         
@@ -160,46 +165,62 @@ class SEOVisualizer:
             x, y = pos[node]
             node_x.append(x)
             node_y.append(y)
+            
             # Tronquer l'URL pour l'affichage
             display_url = node.split('/')[-1][:30] if '/' in node else node[:30]
             node_text.append(display_url)
-            # Taille et couleur basées sur le degré
+            
+            # Info au survol
             degree = G.degree(node)
-            node_size.append(10 + degree * 5)
-            node_color.append(degree)
+            node_hover.append(f"{node}<br>Connexions: {degree}")
+            
+            # Taille et couleur basées sur le degré
+            node_size.append(15 + degree * 3)
+            node_color.append(float(degree))
         
+        # Créer le trace des noeuds SANS colorbar problématique
         node_trace = go.Scatter(
-            x=node_x, y=node_y,
+            x=node_x, 
+            y=node_y,
             mode='markers+text',
+            hovertext=node_hover,
             hoverinfo='text',
             text=node_text,
             textposition="top center",
+            textfont=dict(size=8),
+            showlegend=False,
             marker=dict(
-                showscale=True,
-                colorscale='YlGnBu',
                 size=node_size,
                 color=node_color,
-                colorbar=dict(
-                    thickness=15,
-                    title='Connexions',
-                    xanchor='left',
-                    titleside='right'
-                ),
-                line=dict(width=2, color='white')
+                colorscale='Viridis',
+                line=dict(width=1, color='white')
             )
         )
         
-        fig = go.Figure(data=[edge_trace, node_trace],
-                       layout=go.Layout(
-                           title=f'Graphe des Opportunités de Liens (Top {len(top_opportunities)})',
-                           titlefont_size=16,
-                           showlegend=False,
-                           hovermode='closest',
-                           margin=dict(b=20, l=5, r=5, t=40),
-                           xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                           yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                           height=600
-                       ))
+        # Créer la figure
+        fig = go.Figure(data=[edge_trace, node_trace])
+        
+        fig.update_layout(
+            title=dict(
+                text=f'Graphe des Opportunités de Liens (Top {len(top_opportunities)})',
+                font=dict(size=16)
+            ),
+            showlegend=False,
+            hovermode='closest',
+            margin=dict(b=20, l=5, r=5, t=40),
+            xaxis=dict(
+                showgrid=False, 
+                zeroline=False, 
+                showticklabels=False
+            ),
+            yaxis=dict(
+                showgrid=False, 
+                zeroline=False, 
+                showticklabels=False
+            ),
+            height=600,
+            plot_bgcolor='white'
+        )
         
         return fig
     
