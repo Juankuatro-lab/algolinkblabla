@@ -27,6 +27,19 @@ class SEOAnalyzer:
         """Calcule le score de priorité pour chaque page"""
         df = self.data.copy()
         
+        # S'assurer que toutes les colonnes nécessaires existent et sont numériques
+        for col in ['Impressions', 'Position', 'Link Score', 'Crawl Depth', 'Clicks']:
+            if col not in df.columns:
+                df[col] = 0 if col != 'Position' else 100
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0 if col != 'Position' else 100)
+        
+        # Remplacer les valeurs infinies ou invalides
+        df = df.replace([np.inf, -np.inf], np.nan)
+        df['Impressions'] = df['Impressions'].fillna(0).clip(lower=0)
+        df['Position'] = df['Position'].fillna(100).clip(lower=1, upper=100)
+        df['Link Score'] = df['Link Score'].fillna(0).clip(lower=0, upper=100)
+        df['Crawl Depth'] = df['Crawl Depth'].fillna(1).clip(lower=0)
+        
         # Normalisation des métriques (0-1)
         df['norm_impressions'] = self._normalize(df['Impressions'])
         df['norm_position'] = self._normalize(1 / (df['Position'] + 1))  # Inverse car position basse = mieux
@@ -41,11 +54,17 @@ class SEOAnalyzer:
             df['norm_depth'] * PRIORITY_WEIGHTS['depth']
         )
         
+        # Remplacer les NaN dans Priority_Score par 0
+        df['Priority_Score'] = df['Priority_Score'].fillna(0)
+        
         # Identifier le potentiel
+        impressions_median = df['Impressions'].median()
+        link_score_median = df['Link Score'].median()
+        
         df['Has_Potential'] = (
-            (df['Impressions'] > df['Impressions'].median()) &
+            (df['Impressions'] > impressions_median) &
             (df['Position'] > 10) &
-            (df['Link Score'] < df['Link Score'].median())
+            (df['Link Score'] < link_score_median)
         )
         
         return df.sort_values('Priority_Score', ascending=False)
