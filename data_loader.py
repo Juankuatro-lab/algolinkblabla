@@ -4,7 +4,7 @@ from typing import Optional, Dict, List
 
 
 class DataLoader:
-    """Classe pour charger et valider les données d'entrée"""
+    """Classe pour charger et valider les données d'entrée (FR/EN)"""
     
     def __init__(self):
         self.crawl_data = None
@@ -42,21 +42,36 @@ class DataLoader:
             if file.name.endswith('.csv'):
                 df = pd.read_csv(file, encoding='utf-8-sig')
             else:
-                df = pd.read_excel(file)
+                # Pour Excel, lire la première feuille qui contient "HTML" ou "Interne"
+                excel_file = pd.ExcelFile(file)
+                sheet_name = None
+                for name in excel_file.sheet_names:
+                    if 'html' in name.lower() or 'interne' in name.lower():
+                        sheet_name = name
+                        break
+                
+                if sheet_name is None:
+                    sheet_name = excel_file.sheet_names[0]
+                
+                st.info(f"📑 Lecture de la feuille: {sheet_name}")
+                df = pd.read_excel(file, sheet_name=sheet_name)
             
             # Nettoyage des noms de colonnes
             df.columns = df.columns.str.strip()
             
-            st.info(f"📋 Colonnes détectées dans le fichier: {', '.join(df.columns[:10])}...")
+            st.info(f"📋 {len(df.columns)} colonnes détectées. Premières: {', '.join(list(df.columns)[:5])}...")
             
-            # Mapping des colonnes possibles
+            # Mapping des colonnes possibles (FR + EN)
             column_mapping = {
-                'Address': ['address', 'url', 'page url', 'page', 'source'],
+                'Address': ['address', 'adresse', 'url', 'page url', 'page', 'source'],
                 'Link Score': ['link score', 'linkscore', 'score', 'link equity'],
-                'Unique Inlinks': ['unique inlinks', 'inlinks', 'unique inlink', 'inbound links', 'internal links in'],
-                'Crawl Depth': ['crawl depth', 'depth', 'distance', 'level'],
-                'Status Code': ['status code', 'status', 'http status code', 'response code'],
-                'Indexability': ['indexability', 'indexable', 'index status', 'indexability status']
+                'Unique Inlinks': ['unique inlinks', 'inlinks', 'unique inlink', 'liens entrants uniques', 
+                                   'liens entrants', 'inbound links', 'internal links in'],
+                'Crawl Depth': ['crawl depth', 'depth', 'crawl profondeur', 'profondeur', 'distance', 'level'],
+                'Status Code': ['status code', 'status', 'code http', 'http status code', 'code de statut', 
+                               'response code', 'code'],
+                'Indexability': ['indexability', 'indexable', 'indexabilité', 'indexabilite', 
+                                'index status', 'indexability status', 'statut indexabilité']
             }
             
             # Normaliser les colonnes
@@ -69,7 +84,8 @@ class DataLoader:
                     missing.append(col)
             
             if 'Address' not in df.columns:
-                st.error("❌ Impossible de trouver la colonne URL/Address. Colonnes disponibles: " + ", ".join(df.columns))
+                st.error("❌ Impossible de trouver la colonne URL/Address/Adresse.")
+                st.info(f"Colonnes disponibles: {', '.join(df.columns[:20])}")
                 return None
             
             if missing:
@@ -105,6 +121,24 @@ class DataLoader:
                 df = df[df['Indexability'].str.lower().str.contains('indexable', na=False)]
                 st.info(f"✅ Filtrage pages indexables: {len(df)} pages conservées")
             
+            # Vérifier si GSC est déjà intégré dans le crawl SF
+            gsc_columns_in_sf = []
+            for col_name in ['Clics', 'Clicks', 'Impressions', 'Position', 'CTR']:
+                found = self.find_column(df, [col_name])
+                if found:
+                    gsc_columns_in_sf.append(found)
+            
+            if gsc_columns_in_sf:
+                st.success(f"✨ Données GSC détectées dans le crawl SF: {', '.join(gsc_columns_in_sf)}")
+                # Normaliser les noms
+                gsc_mapping = {
+                    'Clicks': ['clicks', 'clics', 'click'],
+                    'Impressions': ['impressions', 'impression'],
+                    'CTR': ['ctr', 'click-through rate', 'taux de clic'],
+                    'Position': ['position', 'pos', 'avg position']
+                }
+                df = self.normalize_column_names(df, gsc_mapping)
+            
             # Supprimer les doublons d'URL
             df = df.drop_duplicates(subset=['Address'], keep='first')
             
@@ -125,16 +159,31 @@ class DataLoader:
             if file.name.endswith('.csv'):
                 df = pd.read_csv(file, encoding='utf-8-sig')
             else:
-                df = pd.read_excel(file)
+                # Pour Excel GSC, lire la feuille "Pages"
+                excel_file = pd.ExcelFile(file)
+                sheet_name = None
+                
+                # Chercher la feuille "Pages"
+                for name in excel_file.sheet_names:
+                    if 'page' in name.lower():
+                        sheet_name = name
+                        break
+                
+                if sheet_name is None:
+                    sheet_name = excel_file.sheet_names[0]
+                
+                st.info(f"📑 Lecture de la feuille GSC: {sheet_name}")
+                df = pd.read_excel(file, sheet_name=sheet_name)
             
             df.columns = df.columns.str.strip()
             
             st.info(f"📋 Colonnes GSC détectées: {', '.join(df.columns)}")
             
-            # Mapping des colonnes GSC
+            # Mapping des colonnes GSC (FR + EN)
             column_mapping = {
-                'Page': ['page', 'url', 'landing page', 'top pages', 'page url'],
-                'Clicks': ['clicks', 'click', 'clics'],
+                'Page': ['page', 'pages les plus populaires', 'url', 'landing page', 
+                        'top pages', 'page url', 'pages'],
+                'Clicks': ['clicks', 'clics', 'click', 'clic'],
                 'Impressions': ['impressions', 'impression', 'impress'],
                 'CTR': ['ctr', 'click-through rate', 'taux de clic'],
                 'Position': ['position', 'avg position', 'average position', 'pos']
@@ -144,7 +193,8 @@ class DataLoader:
             
             # Vérifier la colonne URL
             if 'Page' not in df.columns:
-                st.error("❌ Impossible de trouver la colonne URL/Page dans GSC. Colonnes: " + ", ".join(df.columns))
+                st.error("❌ Impossible de trouver la colonne URL/Page dans GSC.")
+                st.info(f"Colonnes disponibles: {', '.join(df.columns)}")
                 return None
             
             # Créer les colonnes manquantes
@@ -181,24 +231,39 @@ class DataLoader:
             if file.name.endswith('.csv'):
                 df = pd.read_csv(file, encoding='utf-8-sig')
             else:
-                df = pd.read_excel(file)
+                # Pour Excel, lire la feuille qui contient "lien"
+                excel_file = pd.ExcelFile(file)
+                sheet_name = None
+                for name in excel_file.sheet_names:
+                    if 'lien' in name.lower() or 'link' in name.lower():
+                        sheet_name = name
+                        break
+                
+                if sheet_name is None:
+                    sheet_name = excel_file.sheet_names[0]
+                
+                st.info(f"📑 Lecture de la feuille: {sheet_name}")
+                df = pd.read_excel(file, sheet_name=sheet_name)
             
             df.columns = df.columns.str.strip()
             
-            st.info(f"📋 Colonnes Inlinks détectées: {', '.join(df.columns[:10])}...")
+            st.info(f"📋 Colonnes Inlinks: {', '.join(list(df.columns)[:10])}")
             
-            # Mapping des colonnes de liens
+            # Mapping des colonnes de liens (FR + EN)
             column_mapping = {
-                'Source': ['source', 'source url', 'from', 'source address', 'link from'],
-                'Destination': ['destination', 'target', 'destination url', 'to', 'destination address', 'link to'],
-                'Anchor': ['anchor', 'anchor text', 'link text', 'ancre']
+                'Source': ['source', 'de', 'from', 'source url', 'source address', 'link from'],
+                'Destination': ['destination', 'à', 'a', 'target', 'to', 'destination url', 
+                               'destination address', 'link to'],
+                'Anchor': ['anchor', "texte d'ancrage", "texte d ancrage", 'anchor text', 
+                          'link text', 'ancre', 'text']
             }
             
             df = self.normalize_column_names(df, column_mapping)
             
             # Vérifier les colonnes essentielles
             if 'Source' not in df.columns or 'Destination' not in df.columns:
-                st.error(f"❌ Colonnes Source/Destination manquantes. Colonnes: {', '.join(df.columns)}")
+                st.error(f"❌ Colonnes Source/Destination manquantes.")
+                st.info(f"Colonnes disponibles: {', '.join(df.columns)}")
                 return None
             
             if 'Anchor' not in df.columns:
@@ -238,34 +303,49 @@ class DataLoader:
         
         merged = self.crawl_data.copy()
         
-        # Fusion avec GSC
-        if self.gsc_data is not None:
+        # Vérifier si GSC est déjà dans le crawl SF
+        has_gsc_in_sf = all(col in merged.columns for col in ['Clicks', 'Impressions', 'Position'])
+        
+        if has_gsc_in_sf:
+            st.success("✨ Données GSC déjà intégrées dans le crawl Screaming Frog!")
+        elif self.gsc_data is not None:
+            # Fusion avec GSC externe
             # Normaliser les URLs pour améliorer le matching
             merged['Address_clean'] = merged['Address'].str.lower().str.strip().str.rstrip('/')
             gsc_clean = self.gsc_data.copy()
             gsc_clean['Page_clean'] = gsc_clean['Page'].str.lower().str.strip().str.rstrip('/')
             
+            before_merge = len(merged)
             merged = merged.merge(
                 gsc_clean,
                 left_on='Address_clean',
                 right_on='Page_clean',
-                how='left'
+                how='left',
+                suffixes=('', '_gsc')
             )
             merged.drop(columns=['Page', 'Address_clean', 'Page_clean'], inplace=True, errors='ignore')
             
-            # Remplir les valeurs manquantes
-            merged['Clicks'] = merged['Clicks'].fillna(0)
-            merged['Impressions'] = merged['Impressions'].fillna(0)
-            merged['Position'] = merged['Position'].fillna(100)
-            merged['CTR'] = merged['CTR'].fillna(0)
+            # Utiliser les colonnes GSC externes si pas déjà présentes
+            for col in ['Clicks', 'Impressions', 'Position', 'CTR']:
+                if f'{col}_gsc' in merged.columns:
+                    merged[col] = merged[f'{col}_gsc'].fillna(merged.get(col, 0))
+                    merged.drop(columns=[f'{col}_gsc'], inplace=True, errors='ignore')
             
-            matched = merged['Clicks'].notna().sum()
-            st.info(f"🔗 {matched} pages matchées avec les données GSC")
+            # Remplir les valeurs manquantes
+            merged['Clicks'] = merged.get('Clicks', pd.Series([0]*len(merged))).fillna(0)
+            merged['Impressions'] = merged.get('Impressions', pd.Series([0]*len(merged))).fillna(0)
+            merged['Position'] = merged.get('Position', pd.Series([100]*len(merged))).fillna(100)
+            merged['CTR'] = merged.get('CTR', pd.Series([0]*len(merged))).fillna(0)
+            
+            matched = (merged['Impressions'] > 0).sum()
+            st.info(f"🔗 {matched} pages matchées avec les données GSC externes")
         else:
+            # Pas de GSC du tout
             merged['Clicks'] = 0
             merged['Impressions'] = 0
             merged['Position'] = 100
             merged['CTR'] = 0
+            st.warning("⚠️ Aucune donnée GSC disponible. L'analyse sera basée uniquement sur le crawl.")
         
         st.success(f"✅ Données fusionnées: {len(merged)} pages au total")
         return merged
